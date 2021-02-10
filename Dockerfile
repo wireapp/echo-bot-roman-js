@@ -16,4 +16,4 @@ RUN echo $release_version > $RELEASE_FILE_PATH
 ENV PORT=8080
 EXPOSE $PORT
 
-CMD ["run", "--allow-net", "--allow-env", "--allow-read", "app.ts"]
+CMD ["run", "--allow-net", "--allow-env", "app.ts"]
