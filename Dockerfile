@@ -13,7 +13,6 @@ ENV RELEASE_FILE_PATH=/app/release.txt
 RUN echo $release_version > $RELEASE_FILE_PATH
 # /------------------ Wire common -----------------
 
-ENV PORT=8080
-EXPOSE $PORT
+EXPOSE 8080
 
 CMD ["run", "--allow-net", "--allow-env", "app.ts"]
