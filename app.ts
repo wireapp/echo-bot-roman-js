@@ -1,50 +1,43 @@
-import { Application, helpers, isHttpError, Router, RouterContext } from 'https://deno.land/x/oak@v6.5.0/mod.ts';
+import { Application, isHttpError, Router, RouterContext } from 'https://deno.land/x/oak@v6.5.0/mod.ts';
 
 const env = Deno.env.toObject();
 
 const port = parseInt(env.PORT ?? '8080');
-const romanBroadcast = env.ROMAN_BROADCAST ?? 'https://roman.integrations.zinfra.io/broadcast';
+const romanMessageUrl = env.ROMAN_BROADCAST ?? 'https://roman.integrations.zinfra.io/conversation';
 const romanServiceAuth = env.ROMAN_SERVICE_AUTH;
-const jiraBaseUrl = env.JIRA_BASE_URL ?? 'https://wearezeta.atlassian.net/browse';
-const jiraProjectsConfigurationFilePath = env.JIRA_PROJECTS_CONFIGURATION_FILE_PATH;
-const jiraAuthToken = env.JIRA_AUTH_TOKEN ?? null; // null because if no token is given, do not accept the requests by default
 
 const app = new Application();
 const router = new Router();
 
-router.post('/jira/:project', async (ctx: RouterContext) => {
-  const { token, project } = helpers.getQuery(ctx, { mergeParams: true });
-  ctx.assert(token === jiraAuthToken, 401, 'Authorization required.');
-
-  const appKey = await getAppKeyForProject(project.trim().toLowerCase());
-  ctx.assert(appKey, 404, `Project "${project}" does not exist.`);
+router.post('/roman', async (ctx: RouterContext) => {
+  const authorized = ctx.request.headers.get('authorization')?.split(' ')?.find(x => x === romanServiceAuth);
+  ctx.assert(authorized, 401, 'Authorization required.');
 
   const body = await ctx.request.body({ type: 'json' }).value;
-  ctx.assert(body, 400, 'Body was not a valid JSON.');
+  const { type, text, token, mentions } = body;
+  ctx.response.status = 200;
 
-  const message = formatBodyToWireMessage(body);
-  ctx.response.status = await broadcastTextToWire(message, appKey);
+  switch (type) {
+    case 'conversation.init': {
+      ctx.response.status = await sendMessageToWire(`Hello there!`, token);
+      break;
+    }
+    case 'conversation.new_text': {
+      const prefix = `You said: `;
+      mentions?.forEach((m: any) => m.offset += prefix.length);
+      ctx.response.status = await sendMessageToWire(`${prefix}${text}`, token, mentions);
+      break;
+    }
+  }
 });
 
-const getAppKeyForProject = async (jiraProject: string) => {
-  const projectsKeys = await Deno.readTextFile(jiraProjectsConfigurationFilePath).then(text => JSON.parse(text));
-  return projectsKeys[jiraProject];
-};
-
-const formatBodyToWireMessage = ({ issue }: { issue: any }) => {
-  const { key, fields } = issue;
-  const { summary, reporter } = fields;
-  const issueUrl = `${jiraBaseUrl}/${key}`;
-  return `Issue: [${key}](${issueUrl})\n__${summary}__ reported by __${reporter.displayName}__`;
-};
-
-const broadcastTextToWire = async (message: string, appKey: string) => {
+const sendMessageToWire = async (message: string, token: string, mentions = []) => {
   const response = await fetch(
-    romanBroadcast,
+    romanMessageUrl,
     {
       method: 'POST',
-      headers: { 'app-key': appKey, 'content-type': 'application/json' },
-      body: JSON.stringify({ type: 'text', text: { data: message, mentions: [] } })
+      headers: { 'authorization': `Bearer ${token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ type: 'text', text: { data: message, mentions } })
     }
   );
   if (response.status >= 400) {
@@ -53,11 +46,6 @@ const broadcastTextToWire = async (message: string, appKey: string) => {
   return response.status;
 };
 
-// respond 200 to Roman when joining the conversations
-router.post('/roman', ({ request, response }) => {
-  const authorized = request.headers.get('authorization')?.split(' ')?.find(x => x === romanServiceAuth);
-  response.status = authorized ? 200 : 401;
-});
 
 /* ----------------- WIRE Common ----------------- */
 // k8s indication the service is running
