@@ -10,15 +10,15 @@ router.post('/roman', async (ctx: RouterContext) => {
   ctx.assert(authorized, 401, 'Authorization required.');
 
   const { type, text } = await ctx.request.body({ type: 'json' }).value;
-  ctx.response.status = 200;
-
   switch (type) {
     case 'conversation.init':
       ctx.response.body = { type: 'text', text: { data: `Hello there!` } };
-      return;
+      break;
     case 'conversation.new_text':
       ctx.response.body = { type: 'text', text: { data: `You said: ${text}` } };
+      break;
   }
+  ctx.response.status = 200;
 });
 
 app.use(router.routes());
