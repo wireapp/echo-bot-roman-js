@@ -9,16 +9,15 @@ router.post('/roman', async (ctx: RouterContext) => {
   const authorized = ctx.request.headers.get('authorization')?.split(' ')?.find(x => x === romanServiceAuth);
   ctx.assert(authorized, 401, 'Authorization required.');
 
-  const { type, text, mentions } = await ctx.request.body({ type: 'json' }).value;
+  const { type, text } = await ctx.request.body({ type: 'json' }).value;
   ctx.response.status = 200;
 
   switch (type) {
     case 'conversation.init':
-      ctx.response.body = { type: 'text', text: { data: `Hello there!`, mentions: [] } };
+      ctx.response.body = { type: 'text', text: { data: `Hello there!` } };
       return;
     case 'conversation.new_text':
-      mentions?.forEach((m: any) => m.offset += 10); // shift mentions by 'You said: ' string
-      ctx.response.body = { type: 'text', text: { data: `You said: ${text}`, mentions: mentions ?? [] } };
+      ctx.response.body = { type: 'text', text: { data: `You said: ${text}` } };
   }
 });
 
